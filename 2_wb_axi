@@ -1,0 +1,130 @@
+`timescale 1ns/1ps
+`default_nettype none
+
+module wb_axi_bridge #(
+    parameter pADDR_WIDTH = 12,
+    parameter pDATA_WIDTH = 32
+)(
+    input  wire clk,
+    input  wire rst,
+
+
+    input  wire [31:0] wb_adr_i,
+    input  wire [31:0] wb_dat_i,
+    output reg  [31:0] wb_dat_o,
+    input  wire        wb_we_i,
+    input  wire [3:0]  wb_sel_i,
+    input  wire        wb_stb_i,
+    input  wire        wb_cyc_i,
+    output reg         wb_ack_o,
+
+
+    output reg                  awvalid,
+    output reg  [pADDR_WIDTH-1:0] awaddr,
+    output reg                  wvalid,
+    output reg  [pDATA_WIDTH-1:0] wdata,
+
+
+    output reg                  arvalid,
+    output reg  [pADDR_WIDTH-1:0] araddr,
+    input  wire [pDATA_WIDTH-1:0] rdata,
+    input  wire                  rvalid,
+    output reg                  rready,
+
+    input  wire awready,
+    input  wire wready,
+    input  wire arready,
+
+
+    output reg                  ss_tvalid,
+    output reg  [pDATA_WIDTH-1:0] ss_tdata,
+    input  wire                  ss_tready,
+
+
+    input  wire                  sm_tvalid,
+    input  wire [pDATA_WIDTH-1:0] sm_tdata,
+    output reg                   sm_tready
+);
+
+    localparam ADDR_X_IN  = 32'h30000040;
+    localparam ADDR_Y_OUT = 32'h30000044;
+
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            wb_ack_o <= 0;
+            wb_dat_o <= 0;
+
+            awvalid <= 0; awaddr <= 0;
+            wvalid  <= 0; wdata  <= 0;
+
+            arvalid <= 0; araddr <= 0;
+            rready  <= 0;
+
+            ss_tvalid <= 0; ss_tdata <= 0;
+            sm_tready <= 0;
+        end else begin
+            wb_ack_o <= 0;
+
+            if (wb_stb_i && wb_cyc_i && !wb_ack_o) begin
+                case (wb_adr_i)
+                    ADDR_X_IN: begin
+                        if (wb_we_i && ss_tready) begin
+                            ss_tdata  <= wb_dat_i;
+                            ss_tvalid <= 1;
+                            wb_ack_o  <= 1;
+                        end else begin
+                            ss_tvalid <= 0;
+                        end
+                    end
+
+
+                    ADDR_Y_OUT: begin
+                        sm_tready <= 1;
+                        if (sm_tvalid) begin
+                            wb_dat_o <= sm_tdata;
+                            wb_ack_o <= 1;
+                            sm_tready <= 0;
+                        end
+                    end
+
+
+                    default: begin
+                        if (wb_we_i) begin
+                            awaddr  <= wb_adr_i[pADDR_WIDTH-1:0];
+                            awvalid <= 1;
+                            wdata   <= wb_dat_i;
+                            wvalid  <= 1;
+
+                            if (awready && wready) begin
+                                awvalid <= 0;
+                                wvalid  <= 0;
+                                wb_ack_o <= 1;
+                            end
+                        end else begin
+                            araddr  <= wb_adr_i[pADDR_WIDTH-1:0];
+                            arvalid <= 1;
+                            rready  <= 1;
+
+                            if (arready && rvalid) begin
+                                wb_dat_o <= rdata;
+                                wb_ack_o <= 1;
+                                arvalid  <= 0;
+                                rready   <= 0;
+                            end
+                        end
+                    end
+                endcase
+            end else begin
+                ss_tvalid <= 0;
+                sm_tready <= 0;
+                awvalid <= 0;
+                wvalid  <= 0;
+                arvalid <= 0;
+                rready  <= 0;
+            end
+        end
+    end
+
+endmodule
+
+`default_nettype wire
