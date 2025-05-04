@@ -1,0 +1,70 @@
+`timescale 1ns/1ps
+`default_nettype none
+
+module wb_decode (
+    input  wire        clk,
+    input  wire        rst,
+
+
+    input  wire [31:0] wb_adr_i,
+    input  wire [31:0] wb_dat_i,
+    output wire [31:0] wb_dat_o,
+    input  wire        wb_we_i,
+    input  wire [3:0]  wb_sel_i,
+    input  wire        wb_stb_i,
+    input  wire        wb_cyc_i,
+    output wire        wb_ack_o,
+
+
+    output wire [31:0] exmem_adr_i,
+    output wire [31:0] exmem_dat_i,
+    input  wire [31:0] exmem_dat_o,
+    output wire        exmem_we_i,
+    output wire [3:0]  exmem_sel_i,
+    output wire        exmem_stb_i,
+    output wire        exmem_cyc_i,
+    input  wire        exmem_ack_o,
+
+
+    output wire [31:0] axi_adr_i,
+    output wire [31:0] axi_dat_i,
+    input  wire [31:0] axi_dat_o,
+    output wire        axi_we_i,
+    output wire [3:0]  axi_sel_i,
+    output wire        axi_stb_i,
+    output wire        axi_cyc_i,
+    input  wire        axi_ack_o
+);
+
+
+    wire is_exmem = (wb_adr_i[31:20] == 12'h380);
+    wire is_axi   = (wb_adr_i[31:20] == 12'h300);
+
+
+    assign exmem_adr_i = wb_adr_i;
+    assign exmem_dat_i = wb_dat_i;
+    assign exmem_we_i  = wb_we_i;
+    assign exmem_sel_i = wb_sel_i;
+    assign exmem_stb_i = wb_stb_i && is_exmem;
+    assign exmem_cyc_i = wb_cyc_i && is_exmem;
+
+
+    assign axi_adr_i = wb_adr_i;
+    assign axi_dat_i = wb_dat_i;
+    assign axi_we_i  = wb_we_i;
+    assign axi_sel_i = wb_sel_i;
+    assign axi_stb_i = wb_stb_i && is_axi;
+    assign axi_cyc_i = wb_cyc_i && is_axi;
+
+
+    assign wb_dat_o = is_exmem ? exmem_dat_o :
+                      is_axi   ? axi_dat_o   :
+                                32'hFFFF_FFFF;
+
+
+    assign wb_ack_o = (is_exmem && exmem_ack_o) ||
+                      (is_axi && axi_ack_o);
+
+endmodule
+
+`default_nettype wire
